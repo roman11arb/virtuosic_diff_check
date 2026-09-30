@@ -3,18 +3,8 @@ import os
 import argparse
 from datetime import datetime, timedelta
 
-DIFF_REPORT_OUTPUT_FOLDER = None
-# Set to a folder path, for example "C:/Reports/Virtuosic".
-# When left as None, the diff report is saved beside the source report.
-
 # If we add tD (from reportingDate) + MtD (from previous day) I get MtD Check then I substract MtD cehck - MtD (from reporting date) = I get the Diff Mtd should be 0
 # Also check capital diff, Capital from reporting date - Capital from prev date = If is 0 is Ok
-
-# !! Refactoring
-# Files got from sage will go under Sage Cloud there I will have xlsx files and I need to make this proccess:
-# 1. Set the path to sage cloud
-# 2. Get xslx files from the sage cloud folder and make them as csv and save them in the rawReportFolder
-# 3. From rawReportFolder get the csv files and perform the diff check
 
 
 class GetVirtuosic:
@@ -23,52 +13,79 @@ class GetVirtuosic:
         Get the files that we need to perform the diff check
         """
         self.dataFolder = dataFolder
-        self.sageCloudFolder = dataFolder + "/Sage Cloud"
-        self.rawReportFolder = (
-            dataFolder + "/DailyReports/Crypto_Daily/DailyReportVirtuosic"
+        self.sageCloudFolder = os.path.join(dataFolder, "Sage Cloud")
+        self.rawReportFolder = os.path.join(
+            dataFolder,
+            "DailyReports",
+            "Crypto_Daily",
+            "DailyReportVirtuosic",
         )
         self.reportFile = None
         self.previousReportFile = None
         self.virtuosicReportPattern = "DailyReportVirtuosicFund_%s.xlsx"
 
-    def getXlsxFiles(self, reportDate):
-        """Build the Excel file paths for the report date and previous day."""
+    def getXlsxFile(self, reportDate):
+        """Build the Sage Cloud Excel path for the requested report date."""
+        return os.path.join(
+            self.sageCloudFolder,
+            self.virtuosicReportPattern % reportDate,
+        )
+
+    def getCurrentCsvFile(self, reportDate):
+        """Build the raw-report CSV path for the requested report date."""
+        currentCsvName = (
+            os.path.splitext(self.virtuosicReportPattern % reportDate)[0] + ".csv"
+        )
+        return os.path.join(self.rawReportFolder, currentCsvName)
+
+    def getPreviousCsvFile(self, reportDate):
+        """Build the raw-report CSV path for the preceding calendar day."""
         previousDate = (
             datetime.strptime(reportDate, "%Y%m%d") - timedelta(days=1)
         ).strftime("%Y%m%d")
 
-        return {
-            "VirtuosicFund": os.path.join(
-                self.dataFolder, self.virtuosicReportPattern % reportDate
-            ),
-            "VirtuosicFundPrev": os.path.join(
-                self.dataFolder, self.virtuosicReportPattern % previousDate
-            ),
-        }
+        previousCsvName = (
+            os.path.splitext(self.virtuosicReportPattern % previousDate)[0] + ".csv"
+        )
+        return os.path.join(self.rawReportFolder, previousCsvName)
 
     def checkComplete(self, reportDate):
-        """Check for the Excel reports for the date and preceding calendar day."""
-        isComplete = True
-        for full_path in self.getXlsxFiles(reportDate).values():
-            if not os.path.isfile(full_path):
-                print(f"{os.path.basename(full_path)} is not ready")
-                isComplete = False
-                break
-        return isComplete
+        """Check for a current source report and the preceding day's raw CSV."""
+        currentXlsxPath = self.getXlsxFile(reportDate)
+        currentCsvPath = self.getCurrentCsvFile(reportDate)
+        previousCsvPath = self.getPreviousCsvFile(reportDate)
+
+        if not os.path.isfile(currentXlsxPath) and not os.path.isfile(currentCsvPath):
+            print(f"{os.path.basename(currentXlsxPath)} is not ready")
+            return False
+
+        if not os.path.isfile(previousCsvPath):
+            print(f"{os.path.basename(previousCsvPath)} is not ready")
+            return False
+
+        return True
+
+    def xlsxToCsv(self, xlsxPath):
+        """Convert one Sage Cloud workbook into the raw-report folder."""
+        csvName = os.path.splitext(os.path.basename(xlsxPath))[0] + ".csv"
+        csvPath = os.path.join(self.rawReportFolder, csvName)
+        report_df = pd.read_excel(xlsxPath)
+        report_df.to_csv(csvPath, index=False)
+        os.remove(xlsxPath)
+        return csvPath
 
     def getFiles(self, reportDate):
-        """
-        Convert the Excel reports to CSV and return the CSV file paths.
-        """
-        fileDict = {}
+        """Convert or reuse the current report and return both raw CSV paths."""
+        currentXlsxPath = self.getXlsxFile(reportDate)
+        if os.path.isfile(currentXlsxPath):
+            currentCsvPath = self.xlsxToCsv(currentXlsxPath)
+        else:
+            currentCsvPath = self.getCurrentCsvFile(reportDate)
 
-        for fileName, xlsxPath in self.getXlsxFiles(reportDate).items():
-            csvPath = os.path.splitext(xlsxPath)[0] + ".csv"
-            report_df = pd.read_excel(xlsxPath)
-            report_df.to_csv(csvPath, index=False)
-            fileDict[fileName] = csvPath
-
-        return fileDict
+        return {
+            "VirtuosicFund": currentCsvPath,
+            "VirtuosicFundPrev": self.getPreviousCsvFile(reportDate),
+        }
 
 
 class CheckDiff:
@@ -152,9 +169,7 @@ class CheckDiff:
             return False
 
         print("Diff found")
-        diffReportFolder = DIFF_REPORT_OUTPUT_FOLDER or os.path.dirname(
-            self.fileDict["VirtuosicFund"]
-        )
+        diffReportFolder = os.path.dirname(self.fileDict["VirtuosicFund"])
         diffReportPath = os.path.join(
             diffReportFolder,
             f"virtuosic_diff_{currentDate}.csv",
@@ -180,8 +195,7 @@ def main():
     parser.add_argument(
         "--data-folder",
         type=str,
-        help="Folder containing the Virtuosic daily report Excel files",
-        # default="C:/Users/Roman Lupan/Desktop/crypto_check/",
+        help="Reporting Data root containing Sage Cloud and DailyReports",
         default=os.getenv("Reporting-Data"),
     )
 
