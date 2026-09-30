@@ -3,8 +3,18 @@ import os
 import argparse
 from datetime import datetime, timedelta
 
+DIFF_REPORT_OUTPUT_FOLDER = None
+# Set to a folder path, for example "C:/Reports/Virtuosic".
+# When left as None, the diff report is saved beside the source report.
+
 # If we add tD (from reportingDate) + MtD (from previous day) I get MtD Check then I substract MtD cehck - MtD (from reporting date) = I get the Diff Mtd should be 0
 # Also check capital diff, Capital from reporting date - Capital from prev date = If is 0 is Ok
+
+# !! Refactoring
+# Files got from sage will go under Sage Cloud there I will have xlsx files and I need to make this proccess:
+# 1. Set the path to sage cloud
+# 2. Get xslx files from the sage cloud folder and make them as csv and save them in the rawReportFolder
+# 3. From rawReportFolder get the csv files and perform the diff check
 
 
 class GetVirtuosic:
@@ -13,6 +23,10 @@ class GetVirtuosic:
         Get the files that we need to perform the diff check
         """
         self.dataFolder = dataFolder
+        self.sageCloudFolder = dataFolder + "/Sage Cloud"
+        self.rawReportFolder = (
+            dataFolder + "/DailyReports/Crypto_Daily/DailyReportVirtuosic"
+        )
         self.reportFile = None
         self.previousReportFile = None
         self.virtuosicReportPattern = "DailyReportVirtuosicFund_%s.xlsx"
@@ -138,6 +152,16 @@ class CheckDiff:
             return False
 
         print("Diff found")
+        diffReportFolder = DIFF_REPORT_OUTPUT_FOLDER or os.path.dirname(
+            self.fileDict["VirtuosicFund"]
+        )
+        diffReportPath = os.path.join(
+            diffReportFolder,
+            f"virtuosic_diff_{currentDate}.csv",
+        )
+        self.diff_df.to_csv(diffReportPath)
+        print(f"Diff report saved to {diffReportPath}")
+
         for columnName, diffAmount in differences.items():
             print(f"{columnName}: {int(diffAmount)}")
 
@@ -157,7 +181,8 @@ def main():
         "--data-folder",
         type=str,
         help="Folder containing the Virtuosic daily report Excel files",
-        default="C:/Users/Roman Lupan/Desktop/crypto_check/",
+        # default="C:/Users/Roman Lupan/Desktop/crypto_check/",
+        default=os.getenv("Reporting-Data"),
     )
 
     args = parser.parse_args()
@@ -172,5 +197,9 @@ def main():
     return False
 
 
+def run():
+    raise SystemExit(1 if main() else 0)
+
+
 if __name__ == "__main__":
-    main()
+    run()
