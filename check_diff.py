@@ -3,6 +3,15 @@ import os
 import argparse
 from datetime import datetime, timedelta
 
+
+def _report_int(value):
+    if isinstance(value, str):
+        value = value.replace(",", "").strip()
+        if value.startswith("(") and value.endswith(")"):
+            value = f"-{value[1:-1]}"
+    return int(value)
+
+
 # If we add tD (from reportingDate) + MtD (from previous day) I get MtD Check then I substract MtD cehck - MtD (from reporting date) = I get the Diff Mtd should be 0
 # Also check capital diff, Capital from reporting date - Capital from prev date = If is 0 is Ok
 
@@ -103,7 +112,7 @@ class CheckDiff:
         cleanDfs = {}
 
         for fileName, filePath in self.fileDict.items():
-            report_df = pd.read_csv(filePath, skiprows=9)
+            report_df = pd.read_csv(filePath, skiprows=9, thousands=",")
             cleanDfs[fileName] = report_df.reset_index(drop=True)
 
         return cleanDfs
@@ -122,16 +131,16 @@ class CheckDiff:
         self.diff_df = pd.DataFrame(
             {
                 "Capital": [
-                    int(previous_df.iloc[0]["Capital"]),
-                    int(current_df.iloc[0]["Capital"]),
+                    _report_int(previous_df.iloc[0]["Capital"]),
+                    _report_int(current_df.iloc[0]["Capital"]),
                 ],
                 "MtD": [
-                    int(previous_df.iloc[0]["M TrdResult"]),
-                    int(current_df.iloc[0]["M TrdResult"]),
+                    _report_int(previous_df.iloc[0]["M TrdResult"]),
+                    _report_int(current_df.iloc[0]["M TrdResult"]),
                 ],
                 "tD": [
-                    int(previous_df.iloc[0]["D TrdResult"]),
-                    int(current_df.iloc[0]["D TrdResult"]),
+                    _report_int(previous_df.iloc[0]["D TrdResult"]),
+                    _report_int(current_df.iloc[0]["D TrdResult"]),
                 ],
             },
             index=[previousDate, currentDate],
@@ -190,7 +199,7 @@ def main():
         type=str,
         help="Date in YYYYMMDD format",
         required=False,
-        default="20260922",
+        default="20261004",
     )
     parser.add_argument(
         "--data-folder",
