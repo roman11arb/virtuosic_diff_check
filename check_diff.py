@@ -170,24 +170,26 @@ class CheckDiff:
             dtype="Int64",
         )
 
-        differences = self.diff_df.loc[currentDate, ["Diff MtD", "CapitalChangeIn"]]
-        differences = differences[differences != 0]
+        currentDifferences = self.diff_df.loc[
+            currentDate, ["Diff MtD", "CapitalChangeIn"]
+        ]
+        differences = currentDifferences[currentDifferences != 0]
 
         if differences.empty:
             print("No diff found")
             return False
 
-        print("Diff found")
+        # print("Diff found")
         diffReportFolder = os.path.dirname(self.fileDict["VirtuosicFund"])
         diffReportPath = os.path.join(
             diffReportFolder,
             f"virtuosic_diff_{currentDate}.csv",
         )
         self.diff_df.to_csv(diffReportPath)
-        print(f"Diff report saved to {diffReportPath}")
+        # print(f"Diff report saved to {diffReportPath}")
 
-        for columnName, diffAmount in differences.items():
-            print(f"{columnName}: {int(diffAmount)}")
+        print(f"MtD diff: {int(currentDifferences['Diff MtD'])}")
+        print(f"CapitalChangeIn: {int(currentDifferences['CapitalChangeIn'])}")
 
         return True
 
@@ -199,7 +201,7 @@ def main():
         type=str,
         help="Date in YYYYMMDD format",
         required=False,
-        default="20261004",
+        default="20261006",
     )
     parser.add_argument(
         "--data-folder",
